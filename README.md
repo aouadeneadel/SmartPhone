@@ -1,4 +1,4 @@
-# ABN-SmartPhone
+# ABN - SmartPhone
 
 **ABN-SmartPhone** est une application de bureau performante développée en **Python 3** avec **PyQt5**. Elle offre une interface graphique intuitive pour piloter des appareils Android via le protocole ADB (Android Debug Bridge), facilitant ainsi le diagnostic, la maintenance et l'inventaire de flottes mobiles.
 
