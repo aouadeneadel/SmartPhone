@@ -1,6 +1,6 @@
-# 📱 ADB Management Tool Pro
+# ABN-SmartPhone
 
-**ADB Management Tool Pro** est une application de bureau performante développée en **Python 3** avec **PyQt5**. Elle offre une interface graphique intuitive pour piloter des appareils Android via le protocole ADB (Android Debug Bridge), facilitant ainsi le diagnostic, la maintenance et l'inventaire de flottes mobiles.
+**ABN-SmartPhone** est une application de bureau performante développée en **Python 3** avec **PyQt5**. Elle offre une interface graphique intuitive pour piloter des appareils Android via le protocole ADB (Android Debug Bridge), facilitant ainsi le diagnostic, la maintenance et l'inventaire de flottes mobiles.
 
 
 
@@ -30,7 +30,7 @@
 Ouvrez un terminal dans le dossier du projet et exécutez :
 ```bash
 pip install PyQt5
-
+'''
 
 adb_tool/
 ├── main.py                # Point d'entrée de l'application
