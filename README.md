@@ -4,22 +4,22 @@
 
 
 
-## ✨ Fonctionnalités principales
+## Fonctionnalités principales
 
-### 🔍 Dashboard de Diagnostic
+### Dashboard de Diagnostic
 * **Identité Complète** : Affiche le nom personnalisé de l'appareil, le modèle, la marque et la version d'Android.
 * **Analyse de la Mémoire** : Récupération en temps réel de la **RAM totale** et de l'espace de **Stockage** disponible (partition `/data`).
 * **État de la Batterie** : Monitoring du niveau (%), du statut (charge/décharge) et de la santé matérielle (Bon, Surchauffe, etc.).
 * **Numéro de Série** : Extraction instantanée du S/N pour le suivi d'inventaire.
 
-### ⚙️ Gestion et Configuration
+### Gestion et Configuration
 * **Renommage d'Appareil** : Modification du `device_name` et du `hostname` pour une identification rapide sur le réseau et dans l'outil.
 * **Gestionnaire d'Applications** : Liste des paquets installés avec recherche filtrée, lancement à distance et désinstallation sécurisée.
 * **Personnalisation** : Module de changement de fond d'écran (push et application automatique).
 * **Contrôle Système** : Redémarrage (Reboot) de l'appareil en un clic.
 * **Module GLPI** : Préparation des données techniques pour l'association à des tickets de maintenance.
 
-## 🛠️ Installation
+## Installation
 
 ### Prérequis
 * **Python 3.8+**
@@ -30,7 +30,6 @@
 Ouvrez un terminal dans le dossier du projet et exécutez :
 ```bash
 pip install PyQt5
-'''
 
 adb_tool/
 ├── main.py                # Point d'entrée de l'application
