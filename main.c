@@ -245,7 +245,7 @@ void factory_reset_device() {
 /* ================= MENU ================= */
 
 void display_menu() {
-    printf("\n=== ABN SMARTPHONE TOOL GLPI ===\n");
+    printf("\n=== ABN SMARTPHONE ===\n");
     printf("1. Retour valeur usine\n");
     printf("2. Creer Ticket GLPI\n");
     printf("0. Quitter\n");
