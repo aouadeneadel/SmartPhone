@@ -202,14 +202,56 @@ void create_glpi_ticket() {
     print_success("Ticket cree !");
 }
 
+void factory_reset_device() {
+
+    DeviceStatus status = check_adb();
+
+    if (status == STATUS_UNAUTHORIZED) {
+        print_error("Telephone non autorise (verifier ecran)");
+        return;
+    }
+
+    if (status != STATUS_FOUND) {
+        print_error("Aucun appareil detecte");
+        return;
+    }
+
+    print_info("ATTENTION : Retour aux valeurs d'usine.");
+    print_info("Toutes les donnees seront SUPPRIMEES.");
+    printf("Confirmer (OUI pour valider): ");
+
+    char confirm[16];
+    if (!fgets(confirm, sizeof(confirm), stdin))
+        return;
+
+    trim_newline(confirm);
+
+    if (strcmp(confirm, "OUI") != 0) {
+        print_info("Operation annulee.");
+        return;
+    }
+
+    print_info("Envoi de la commande de reset...");
+
+    int result = system("adb shell am broadcast -a android.intent.action.FACTORY_RESET");
+
+    if (result == 0)
+        print_success("Commande envoyee. Le telephone va redemarrer.");
+    else
+        print_error("Echec du reset.");
+}
+
+
 /* ================= MENU ================= */
 
 void display_menu() {
     printf("\n=== ABN SMARTPHONE TOOL GLPI ===\n");
-    printf("1. Creer Ticket GLPI\n");
+    printf("1. Retour valeur usine\n");
+    printf("2. Creer Ticket GLPI\n");
     printf("0. Quitter\n");
     printf("Choix: ");
 }
+
 
 int main() {
 
@@ -225,6 +267,8 @@ int main() {
         while (getchar() != '\n');
 
         if (choice == 1)
+            factory_reset_device();
+        else if (choice == 2)
             create_glpi_ticket();
         else if (choice == 0)
             break;
