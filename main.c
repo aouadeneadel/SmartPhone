@@ -30,7 +30,10 @@ typedef struct {
     char inventory_number[BUFFER_SIZE];
 } DeviceInfo;
 
-/* ================= UTIL ================= */
+bool run_command(const char *cmd) {
+    int result = system(cmd);
+    return result == 0;
+}
 
 bool run_command_full(const char *cmd, char *output, size_t size) {
     FILE *fp = popen(cmd, "r");
@@ -55,8 +58,6 @@ void trim_newline(char *str) {
 void print_success(const char *m){ printf("\033[1;32m✓ %s\033[0m\n", m); }
 void print_error(const char *m){ printf("\033[1;31m✗ %s\033[0m\n", m); }
 void print_info(const char *m){ printf("\033[1;34mℹ %s\033[0m\n", m); }
-
-/* ================= ADB ================= */
 
 DeviceStatus check_adb() {
     FILE *fp = popen("adb devices 2>&1", "r");
@@ -102,17 +103,79 @@ bool get_device_info_adb(DeviceInfo *info) {
     return ok;
 }
 
-void ask_inventory_number(DeviceInfo *info) {
-    printf("Numero d'inventaire: ");
-    if (fgets(info->inventory_number, BUFFER_SIZE, stdin)) {
-        trim_newline(info->inventory_number);
+void factory_reset_adb() {
+
+    DeviceStatus status = check_adb();
+
+    if (status == STATUS_UNAUTHORIZED) {
+        print_error("Telephone non autorise (verifier ecran)");
+        return;
     }
 
-    if (strlen(info->inventory_number) == 0)
-        strcpy(info->inventory_number, "Non renseigne");
+    if (status != STATUS_FOUND) {
+        print_error("Aucun appareil detecte");
+        return;
+    }
+
+    char confirm[16];
+    print_info("ATTENTION : Retour aux valeurs d'usine.");
+    printf("Confirmer (OUI pour valider): ");
+    if (!fgets(confirm, sizeof(confirm), stdin)) return;
+    trim_newline(confirm);
+
+    if (strcmp(confirm, "OUI") != 0) {
+        print_info("Operation annulee.");
+        return;
+    }
+
+    if (run_command("adb reboot recovery")) {
+        print_success("Recovery lance.");
+        print_info("Selectionner 'Wipe data / factory reset' sur le telephone.");
+    } else {
+        print_error("Echec du reboot recovery.");
+    }
 }
 
-/* ================= GLPI ================= */
+void factory_reset_fastboot() {
+
+    char confirm[16];
+    print_info("ATTENTION : Reset via Fastboot.");
+    printf("Confirmer (OUI pour valider): ");
+    if (!fgets(confirm, sizeof(confirm), stdin)) return;
+    trim_newline(confirm);
+
+    if (strcmp(confirm, "OUI") != 0) {
+        print_info("Operation annulee.");
+        return;
+    }
+
+    print_info("Passage en mode bootloader...");
+    if (!run_command("adb reboot bootloader")) {
+        print_error("Impossible de passer en bootloader.");
+        return;
+    }
+
+    sleep(5);
+
+    char buffer[BUFFER_SIZE];
+    if (!run_command_full("fastboot devices", buffer, BUFFER_SIZE) ||
+        strlen(buffer) < 3) {
+        print_error("Aucun appareil fastboot detecte.");
+        return;
+    }
+
+    print_info("Effacement des donnees (fastboot -w)...");
+    if (!run_command("fastboot -w")) {
+        print_error("Echec du wipe.");
+        return;
+    }
+
+    print_info("Redemarrage appareil...");
+    if (run_command("fastboot reboot"))
+        print_success("Reset termine.");
+    else
+        print_error("Echec reboot.");
+}
 
 bool get_glpi_session(char *session_token) {
 
@@ -202,65 +265,7 @@ void create_glpi_ticket() {
     print_success("Ticket cree !");
 }
 
-void factory_reset_adb() {
-
-    DeviceStatus status = check_adb();
-
-    if (status == STATUS_UNAUTHORIZED) {
-        print_error("Telephone non autorise (verifier ecran)");
-        return;
-    }
-
-    if (status != STATUS_FOUND) {
-        print_error("Aucun appareil detecte");
-        return;
-    }
-
-    print_info("ATTENTION : Retour aux valeurs d'usine.");
-    print_info("Redemarrage en mode recovery...");
-
-    if (run_command_full("adb reboot recovery")) {
-        print_success("Recovery lance.");
-        print_info("Selectionner 'Wipe data / factory reset' sur le telephone.");
-    } else {
-        print_error("Echec du reboot recovery.");
-    }
-}
-
-void factory_reset_fastboot() {
-
-    print_info("Passage en mode bootloader...");
-
-    if (!run_command_full("adb reboot bootloader")) {
-        print_error("Impossible de passer en bootloader.");
-        return;
-    }
-
-    sleep(5);
-
-    print_info("Verification appareil fastboot...");
-
-    if (!run_command_full("fastboot devices")) {
-        print_error("Aucun appareil fastboot detecte.");
-        return;
-    }
-
-    print_info("Effacement des donnees (fastboot -w)...");
-
-    if (!run_command_full("fastboot -w")) {
-        print_error("Echec du wipe.");
-        return;
-    }
-
-    print_info("Redemarrage appareil...");
-
-    if (run_command_full("fastboot reboot"))
-        print_success("Reset termine.");
-    else
-        print_error("Echec reboot.");
-}
-
-/* Menu */
+/* ================= MENU ================= */
 
 void display_menu() {
     printf("\n=== ABN SMARTPHONE ===\n");
@@ -270,7 +275,6 @@ void display_menu() {
     printf("0. Quitter\n");
     printf("Choix: ");
 }
-
 
 int main() {
 
@@ -285,17 +289,20 @@ int main() {
         }
         while (getchar() != '\n');
 
-        if (choice == 1)
-            factory_reset_adb();
-        else if (choice == 2)
-            factory_reset_fastboot();
-        else if (choice == 3)
-            create_glpi_ticket();
-        else if (choice == 0)
-            break;
-        else
-            print_error("Choix invalide");
+        switch(choice) {
+            case 1:
+                factory_reset_adb();
+                break;
+            case 2:
+                factory_reset_fastboot();
+                break;
+            case 3:
+                create_glpi_ticket();
+                break;
+            case 0:
+                return 0;
+            default:
+                print_error("Choix invalide");
+        }
     }
-
-    return 0;
 }
