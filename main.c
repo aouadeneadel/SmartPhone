@@ -219,7 +219,7 @@ void factory_reset_adb() {
     print_info("ATTENTION : Retour aux valeurs d'usine.");
     print_info("Redemarrage en mode recovery...");
 
-    if (run_command("adb reboot recovery")) {
+    if (run_command_full("adb reboot recovery")) {
         print_success("Recovery lance.");
         print_info("Selectionner 'Wipe data / factory reset' sur le telephone.");
     } else {
@@ -231,7 +231,7 @@ void factory_reset_fastboot() {
 
     print_info("Passage en mode bootloader...");
 
-    if (!run_command("adb reboot bootloader")) {
+    if (!run_command_full("adb reboot bootloader")) {
         print_error("Impossible de passer en bootloader.");
         return;
     }
@@ -240,21 +240,21 @@ void factory_reset_fastboot() {
 
     print_info("Verification appareil fastboot...");
 
-    if (!run_command("fastboot devices")) {
+    if (!run_command_full("fastboot devices")) {
         print_error("Aucun appareil fastboot detecte.");
         return;
     }
 
     print_info("Effacement des donnees (fastboot -w)...");
 
-    if (!run_command("fastboot -w")) {
+    if (!run_command_full("fastboot -w")) {
         print_error("Echec du wipe.");
         return;
     }
 
     print_info("Redemarrage appareil...");
 
-    if (run_command("fastboot reboot"))
+    if (run_command_full("fastboot reboot"))
         print_success("Reset termine.");
     else
         print_error("Echec reboot.");
@@ -286,7 +286,7 @@ int main() {
         while (getchar() != '\n');
 
         if (choice == 1)
-            factory_reset_device();
+            factory_reset_adb();
         else if (choice == 2)
             factory_reset_fastboot();
         else if (choice == 3)
