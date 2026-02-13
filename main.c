@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,10 +31,7 @@ typedef struct {
     char inventory_number[BUFFER_SIZE];
 } DeviceInfo;
 
-bool run_command(const char *cmd) {
-    int result = system(cmd);
-    return result == 0;
-}
+/* ================= UTIL ================= */
 
 bool run_command_full(const char *cmd, char *output, size_t size) {
     FILE *fp = popen(cmd, "r");
@@ -44,7 +42,8 @@ bool run_command_full(const char *cmd, char *output, size_t size) {
 
     while (fgets(output + len, size - len, fp)) {
         len = strlen(output);
-        if (len >= size - 1) break;
+        if (len >= size - 1)
+            break;
     }
 
     pclose(fp);
@@ -55,9 +54,19 @@ void trim_newline(char *str) {
     str[strcspn(str, "\r\n")] = 0;
 }
 
-void print_success(const char *m){ printf("\033[1;32m✓ %s\033[0m\n", m); }
-void print_error(const char *m){ printf("\033[1;31m✗ %s\033[0m\n", m); }
-void print_info(const char *m){ printf("\033[1;34mℹ %s\033[0m\n", m); }
+void print_success(const char *m) {
+    printf("\033[1;32m✓ %s\033[0m\n", m);
+}
+
+void print_error(const char *m) {
+    printf("\033[1;31m✗ %s\033[0m\n", m);
+}
+
+void print_info(const char *m) {
+    printf("\033[1;34mℹ %s\033[0m\n", m);
+}
+
+/* ================= ADB ================= */
 
 DeviceStatus check_adb() {
     FILE *fp = popen("adb devices 2>&1", "r");
@@ -68,13 +77,18 @@ DeviceStatus check_adb() {
     bool unauthorized = false;
 
     while (fgets(line, sizeof(line), fp)) {
-        if (strstr(line, "unauthorized")) unauthorized = true;
-        if (strstr(line, "\tdevice")) found = true;
+        if (strstr(line, "unauthorized"))
+            unauthorized = true;
+
+        if (strstr(line, "\tdevice"))
+            found = true;
     }
 
     pclose(fp);
 
-    if (unauthorized) return STATUS_UNAUTHORIZED;
+    if (unauthorized)
+        return STATUS_UNAUTHORIZED;
+
     return found ? STATUS_FOUND : STATUS_NOT_FOUND;
 }
 
@@ -83,12 +97,25 @@ bool get_device_info_adb(DeviceInfo *info) {
 
     bool ok = true;
 
-    ok &= run_command_full("adb shell getprop ro.product.model", info->model, BUFFER_SIZE);
-    ok &= run_command_full("adb shell getprop ro.product.brand", info->brand, BUFFER_SIZE);
-    ok &= run_command_full("adb shell getprop ro.build.version.release", info->android_version, BUFFER_SIZE);
-    ok &= run_command_full("adb shell getprop ro.build.version.sdk", info->sdk_version, BUFFER_SIZE);
-    ok &= run_command_full("adb shell getprop ro.serialno", info->serial, BUFFER_SIZE);
-    ok &= run_command_full("adb shell dumpsys battery | grep level | awk '{print $2}'", info->battery_level, BUFFER_SIZE);
+    ok &= run_command_full("adb shell getprop ro.product.model",
+                           info->model, BUFFER_SIZE);
+
+    ok &= run_command_full("adb shell getprop ro.product.brand",
+                           info->brand, BUFFER_SIZE);
+
+    ok &= run_command_full("adb shell getprop ro.build.version.release",
+                           info->android_version, BUFFER_SIZE);
+
+    ok &= run_command_full("adb shell getprop ro.build.version.sdk",
+                           info->sdk_version, BUFFER_SIZE);
+
+    ok &= run_command_full("adb shell getprop ro.serialno",
+                           info->serial, BUFFER_SIZE);
+
+    ok &= run_command_full(
+        "adb shell dumpsys battery | grep level | awk '{print $2}'",
+        info->battery_level, BUFFER_SIZE
+    );
 
     trim_newline(info->model);
     trim_newline(info->brand);
@@ -103,82 +130,20 @@ bool get_device_info_adb(DeviceInfo *info) {
     return ok;
 }
 
-void factory_reset_adb() {
+void ask_inventory_number(DeviceInfo *info) {
+    printf("Numero d'inventaire: ");
 
-    DeviceStatus status = check_adb();
-
-    if (status == STATUS_UNAUTHORIZED) {
-        print_error("Telephone non autorise (verifier ecran)");
-        return;
+    if (fgets(info->inventory_number, BUFFER_SIZE, stdin)) {
+        trim_newline(info->inventory_number);
     }
 
-    if (status != STATUS_FOUND) {
-        print_error("Aucun appareil detecte");
-        return;
-    }
-
-    char confirm[16];
-    print_info("ATTENTION : Retour aux valeurs d'usine.");
-    printf("Confirmer (OUI pour valider): ");
-    if (!fgets(confirm, sizeof(confirm), stdin)) return;
-    trim_newline(confirm);
-
-    if (strcmp(confirm, "OUI") != 0) {
-        print_info("Operation annulee.");
-        return;
-    }
-
-    if (run_command("adb reboot recovery")) {
-        print_success("Recovery lance.");
-        print_info("Selectionner 'Wipe data / factory reset' sur le telephone.");
-    } else {
-        print_error("Echec du reboot recovery.");
-    }
+    if (strlen(info->inventory_number) == 0)
+        strcpy(info->inventory_number, "Non renseigne");
 }
 
-void factory_reset_fastboot() {
-
-    char confirm[16];
-    print_info("ATTENTION : Reset via Fastboot.");
-    printf("Confirmer (OUI pour valider): ");
-    if (!fgets(confirm, sizeof(confirm), stdin)) return;
-    trim_newline(confirm);
-
-    if (strcmp(confirm, "OUI") != 0) {
-        print_info("Operation annulee.");
-        return;
-    }
-
-    print_info("Passage en mode bootloader...");
-    if (!run_command("adb reboot bootloader")) {
-        print_error("Impossible de passer en bootloader.");
-        return;
-    }
-
-    sleep(5);
-
-    char buffer[BUFFER_SIZE];
-    if (!run_command_full("fastboot devices", buffer, BUFFER_SIZE) ||
-        strlen(buffer) < 3) {
-        print_error("Aucun appareil fastboot detecte.");
-        return;
-    }
-
-    print_info("Effacement des donnees (fastboot -w)...");
-    if (!run_command("fastboot -w")) {
-        print_error("Echec du wipe.");
-        return;
-    }
-
-    print_info("Redemarrage appareil...");
-    if (run_command("fastboot reboot"))
-        print_success("Reset termine.");
-    else
-        print_error("Echec reboot.");
-}
+/* ================= GLPI ================= */
 
 bool get_glpi_session(char *session_token) {
-
     char cmd[BUFFER_SIZE];
     char response[BUFFER_SIZE];
 
@@ -187,17 +152,22 @@ bool get_glpi_session(char *session_token) {
         "-H \"Content-Type: application/json\" "
         "-H \"App-Token: %s\" "
         "-H \"Authorization: user_token %s\"",
-        GLPI_URL, GLPI_APP_TOKEN, GLPI_USER_TOKEN);
+        GLPI_URL,
+        GLPI_APP_TOKEN,
+        GLPI_USER_TOKEN
+    );
 
     if (!run_command_full(cmd, response, sizeof(response)))
         return false;
 
-    sscanf(response, "{\"session_token\":\"%255[^\"]\"}", session_token);
+    sscanf(response,
+           "{\"session_token\":\"%255[^\"]\"}",
+           session_token);
+
     return strlen(session_token) > 0;
 }
 
 void create_glpi_ticket() {
-
     DeviceStatus status = check_adb();
 
     if (status == STATUS_UNAUTHORIZED) {
@@ -211,6 +181,7 @@ void create_glpi_ticket() {
     }
 
     DeviceInfo info;
+
     if (!get_device_info_adb(&info)) {
         print_error("Impossible de recuperer infos appareil");
         return;
@@ -221,6 +192,7 @@ void create_glpi_ticket() {
     char session_token[256] = {0};
 
     print_info("Connexion GLPI...");
+
     if (!get_glpi_session(session_token)) {
         print_error("Echec session GLPI");
         return;
@@ -265,19 +237,58 @@ void create_glpi_ticket() {
     print_success("Ticket cree !");
 }
 
+void factory_reset_device() {
+    DeviceStatus status = check_adb();
+
+    if (status == STATUS_UNAUTHORIZED) {
+        print_error("Telephone non autorise (verifier ecran)");
+        return;
+    }
+
+    if (status != STATUS_FOUND) {
+        print_error("Aucun appareil detecte");
+        return;
+    }
+
+    print_info("ATTENTION : Retour aux valeurs d'usine.");
+    print_info("Toutes les donnees seront SUPPRIMEES.");
+
+    printf("Confirmer (OUI pour valider): ");
+
+    char confirm[16];
+
+    if (!fgets(confirm, sizeof(confirm), stdin))
+        return;
+
+    trim_newline(confirm);
+
+    if (strcmp(confirm, "OUI") != 0) {
+        print_info("Operation annulee.");
+        return;
+    }
+
+    print_info("Envoi de la commande de reset...");
+
+    int result = system("adb reboot recovery");
+    print_info("Selectionner 'Wipe data / factory reset' sur le telephone.");
+
+    if (result == 0)
+        print_success("Commande envoyee. Le telephone va redemarrer.");
+    else
+        print_error("Echec du reset.");
+}
+
 /* ================= MENU ================= */
 
 void display_menu() {
     printf("\n=== ABN SMARTPHONE ===\n");
-    printf("1. Reset via ADB (Recovery)\n");
-    printf("2. Reset via Fastboot\n");
-    printf("3. Creer Ticket GLPI\n");
+    printf("1. Retour valeur usine\n");
+    printf("2. Creer Ticket GLPI\n");
     printf("0. Quitter\n");
     printf("Choix: ");
 }
 
 int main() {
-
     int choice;
 
     while (1) {
@@ -287,22 +298,18 @@ int main() {
             while (getchar() != '\n');
             continue;
         }
+
         while (getchar() != '\n');
 
-        switch(choice) {
-            case 1:
-                factory_reset_adb();
-                break;
-            case 2:
-                factory_reset_fastboot();
-                break;
-            case 3:
-                create_glpi_ticket();
-                break;
-            case 0:
-                return 0;
-            default:
-                print_error("Choix invalide");
-        }
+        if (choice == 1)
+            factory_reset_device();
+        else if (choice == 2)
+            create_glpi_ticket();
+        else if (choice == 0)
+            break;
+        else
+            print_error("Choix invalide");
     }
+
+    return 0;
 }
