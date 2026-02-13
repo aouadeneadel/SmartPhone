@@ -202,7 +202,7 @@ void create_glpi_ticket() {
     print_success("Ticket cree !");
 }
 
-void factory_reset_device() {
+void factory_reset_adb() {
 
     DeviceStatus status = check_adb();
 
@@ -217,37 +217,56 @@ void factory_reset_device() {
     }
 
     print_info("ATTENTION : Retour aux valeurs d'usine.");
-    print_info("Toutes les donnees seront SUPPRIMEES.");
-    printf("Confirmer (OUI pour valider): ");
+    print_info("Redemarrage en mode recovery...");
 
-    char confirm[16];
-    if (!fgets(confirm, sizeof(confirm), stdin))
-        return;
+    if (run_command("adb reboot recovery")) {
+        print_success("Recovery lance.");
+        print_info("Selectionner 'Wipe data / factory reset' sur le telephone.");
+    } else {
+        print_error("Echec du reboot recovery.");
+    }
+}
 
-    trim_newline(confirm);
+void factory_reset_fastboot() {
 
-    if (strcmp(confirm, "OUI") != 0) {
-        print_info("Operation annulee.");
+    print_info("Passage en mode bootloader...");
+
+    if (!run_command("adb reboot bootloader")) {
+        print_error("Impossible de passer en bootloader.");
         return;
     }
 
-    print_info("Envoi de la commande de reset...");
+    sleep(5);
 
-    int result = system("adb shell am broadcast -a android.intent.action.FACTORY_RESET");
+    print_info("Verification appareil fastboot...");
 
-    if (result == 0)
-        print_success("Commande envoyee. Le telephone va redemarrer.");
+    if (!run_command("fastboot devices")) {
+        print_error("Aucun appareil fastboot detecte.");
+        return;
+    }
+
+    print_info("Effacement des donnees (fastboot -w)...");
+
+    if (!run_command("fastboot -w")) {
+        print_error("Echec du wipe.");
+        return;
+    }
+
+    print_info("Redemarrage appareil...");
+
+    if (run_command("fastboot reboot"))
+        print_success("Reset termine.");
     else
-        print_error("Echec du reset.");
+        print_error("Echec reboot.");
 }
 
-
-/* ================= MENU ================= */
+/* Menu */
 
 void display_menu() {
     printf("\n=== ABN SMARTPHONE ===\n");
-    printf("1. Retour valeur usine\n");
-    printf("2. Creer Ticket GLPI\n");
+    printf("1. Reset via ADB (Recovery)\n");
+    printf("2. Reset via Fastboot\n");
+    printf("3. Creer Ticket GLPI\n");
     printf("0. Quitter\n");
     printf("Choix: ");
 }
@@ -269,6 +288,8 @@ int main() {
         if (choice == 1)
             factory_reset_device();
         else if (choice == 2)
+            factory_reset_fastboot();
+        else if (choice == 3)
             create_glpi_ticket();
         else if (choice == 0)
             break;
